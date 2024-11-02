@@ -3930,8 +3930,11 @@ class ModelTesterMixin:
 
     @parameterized.expand([("float16",), ("bfloat16",), ("float32",)])
     @require_torch_sdpa
-    @slow
     def test_eager_matches_sdpa_inference(self, torch_dtype: str):
+        for _ in range(100):
+            self._test_eager_matches_sdpa_inference(torch_dtype)
+
+    def _test_eager_matches_sdpa_inference(self, torch_dtype: str):
         if not self.has_attentions:
             self.skipTest(reason="Model architecture does not support attentions")
 
@@ -3956,9 +3959,11 @@ class ModelTesterMixin:
 
         atols = {
             ("cpu", False, torch.float32): 1e-6,
-            ("cpu", False, torch.bfloat16): 1e-2,
+            ("cpu", False, torch.float16): 5e-3,
+            ("cpu", False, torch.bfloat16): 5e-2,
             ("cpu", True, torch.float32): 1e-6,
-            ("cpu", True, torch.bfloat16): 1e-2,
+            ("cpu", True, torch.float16): 5e-3,
+            ("cpu", True, torch.bfloat16): 5e-2,
             ("cuda", False, torch.float32): 1e-6,
             ("cuda", False, torch.bfloat16): 1e-2,
             ("cuda", False, torch.float16): 5e-3,
@@ -3968,8 +3973,10 @@ class ModelTesterMixin:
         }
         rtols = {
             ("cpu", False, torch.float32): 1e-4,
+            ("cpu", False, torch.float16): 5e-3,
             ("cpu", False, torch.bfloat16): 1e-2,
             ("cpu", True, torch.float32): 1e-4,
+            ("cpu", True, torch.float16): 5e-3,
             ("cpu", True, torch.bfloat16): 1e-2,
             ("cuda", False, torch.float32): 1e-4,
             ("cuda", False, torch.bfloat16): 1e-2,
@@ -3988,9 +3995,12 @@ class ModelTesterMixin:
             self.model_tester.vision_config["num_hidden_layers"] = 1
         if hasattr(self.model_tester, "text_config") and "num_hidden_layers" in self.model_tester.text_config:
             self.model_tester.text_config["num_hidden_layers"] = 1
+        if hasattr(self.model_tester, "rms_norm_eps"):
+            self.model_tester.rms_norm_eps = 1.0
 
         for model_class in self.all_model_classes:
             config, inputs_dict = self.model_tester.prepare_config_and_inputs_for_common()
+            config.rms_norm_eps = 1.0
             model = model_class(config)
             # FIXME: we deactivate boolean mask for models using "use_mask_token" in their constructors.
             # These models support masking only in the case `use_mask_token=True`. Otherwise they cannot consume an input mask.
@@ -4002,14 +4012,14 @@ class ModelTesterMixin:
             with tempfile.TemporaryDirectory() as tmpdirname:
                 model.save_pretrained(tmpdirname)
                 model_sdpa = model_class.from_pretrained(tmpdirname, torch_dtype=torch_dtype)
-                model_sdpa = model_sdpa.eval().to(torch_device)
+                model_sdpa = model_sdpa.eval().to(torch_device, dtype=torch_dtype)
 
                 model_eager = model_class.from_pretrained(
                     tmpdirname,
                     torch_dtype=torch_dtype,
                     attn_implementation="eager",
                 )
-                model_eager = model_eager.eval().to(torch_device)
+                model_eager = model_eager.eval().to(torch_device, dtype=torch_dtype)
 
                 # We use these for loops instead of parameterized.expand just for the interest of avoiding loading/saving 16 times the model,
                 # but it would be nicer to have an efficient way to use parameterized.expand

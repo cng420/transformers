@@ -19,10 +19,11 @@ import unittest
 
 import numpy as np
 from huggingface_hub import hf_hub_download
+from parameterized import parameterized
 
 from transformers import VideoMAEConfig
 from transformers.models.auto import get_values
-from transformers.testing_utils import require_torch, require_vision, slow, torch_device
+from transformers.testing_utils import require_torch, require_torch_sdpa, require_vision, slow, torch_device
 from transformers.utils import cached_property, is_torch_available, is_vision_available
 
 from ...test_configuration_common import ConfigTester
@@ -212,6 +213,13 @@ class VideoMAEModelTest(ModelTesterMixin, PipelineTesterMixin, unittest.TestCase
                 )
 
         return inputs_dict
+
+    @require_torch_sdpa
+    @parameterized.expand([("float16",), ("bfloat16",), ("float32",)])
+    def test_eager_matches_sdpa_inference(self, torch_dtype: str):
+        if torch_dtype == "bfloat16" and torch_device == "cpu":
+            self.skipTest("`mse_cpu` not implemented for 'BFloat16'")
+        super()._test_eager_matches_sdpa_inference(torch_dtype)
 
     def test_config(self):
         self.config_tester.run_common_tests()

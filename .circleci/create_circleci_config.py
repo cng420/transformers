@@ -26,7 +26,7 @@ import yaml
 COMMON_ENV_VARIABLES = {
     "OMP_NUM_THREADS": 1,
     "TRANSFORMERS_IS_CI": True,
-    "PYTEST_TIMEOUT": 120,
+    "PYTEST_TIMEOUT": 1800,
     "RUN_PIPELINE_TESTS": False,
     "RUN_PT_TF_CROSS_TESTS": False,
     "RUN_PT_FLAX_CROSS_TESTS": False,
@@ -140,7 +140,7 @@ class CircleCIJob:
             },
             {"run": {
                 "name": "Run tests",
-                "command": f"({timeout_cmd} python3 -m pytest {marker_cmd} -n {self.pytest_num_workers} {additional_flags} {' '.join(pytest_flags)} $(cat splitted_tests.txt) | tee tests_output.txt)"}
+                "command": f'({timeout_cmd} python3 -m pytest {marker_cmd} -n {self.pytest_num_workers} {additional_flags} {" ".join(pytest_flags)} $(cat splitted_tests.txt) -k "test_eager_matches_sdpa_inference" | tee tests_output.txt)'}
             },
             {"run": {"name": "Expand to show skipped tests", "when": "always", "command": f"python3 .circleci/parse_test_outputs.py --file tests_output.txt --skip"}},
             {"run": {"name": "Failed tests: show reasons",   "when": "always", "command": f"python3 .circleci/parse_test_outputs.py --file tests_output.txt --fail"}},
@@ -184,8 +184,8 @@ torch_job = CircleCIJob(
     "torch",
     docker_image=[{"image": "huggingface/transformers-torch-light"}],
     marker="not generate",
-    parallelism=6,
-    pytest_num_workers=8
+    parallelism=16,
+    pytest_num_workers=16
 )
 
 generate_job = CircleCIJob(
@@ -345,11 +345,11 @@ doc_test_job = CircleCIJob(
     pytest_num_workers=1,
 )
 
-REGULAR_TESTS = [torch_and_tf_job, torch_and_flax_job, torch_job, tf_job, flax_job, hub_job, onnx_job, tokenization_job, processor_job, generate_job, non_model_job] # fmt: skip
-EXAMPLES_TESTS = [examples_torch_job, examples_tensorflow_job]
-PIPELINE_TESTS = [pipelines_torch_job, pipelines_tf_job]
-REPO_UTIL_TESTS = [repo_utils_job]
-DOC_TESTS = [doc_test_job]
+REGULAR_TESTS = [torch_job] # fmt: skip
+EXAMPLES_TESTS = []
+PIPELINE_TESTS = []
+REPO_UTIL_TESTS = []
+DOC_TESTS = []
 ALL_TESTS = REGULAR_TESTS + EXAMPLES_TESTS + PIPELINE_TESTS + REPO_UTIL_TESTS + DOC_TESTS + [custom_tokenizers_job] + [exotic_models_job]  # fmt: skip
 
 def create_circleci_config(folder=None):

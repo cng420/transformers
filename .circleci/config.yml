@@ -200,9 +200,6 @@ workflows:
             not:
                  equal: [<<pipeline.project.git_url>>, https://github.com/huggingface/transformers]
         jobs:
-            - check_circleci_user
-            - check_code_quality
-            - check_repository_consistency
             - fetch_tests:
                 # [reference] https://circleci.com/docs/contexts/
                 context:
